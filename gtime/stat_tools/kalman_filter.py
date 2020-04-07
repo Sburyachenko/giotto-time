@@ -12,14 +12,16 @@ from numpy.linalg import multi_dot
 
 class KalmanFilter:
 
-    def __init__(self, p, q, sigma):
-        self.p = p
-        self.q = q
-        m = len(p)
-        R = np.concatenate((np.ones(1), self.q[:-1]))
+    def __init__(self, mu, sigma, phi, theta):
+        self.phi = phi
+        self.theta = theta
+        self.mu = mu
+        self.sigma = sigma
+        m = len(phi)
+        R = np.concatenate((np.ones(1), self.theta[:-1]))
         self.R = np.diag(R)
-        K = np.concatenate((self.p[:-1].reshape((-1, 1)), np.identity(m - 1)), axis=1)
-        self.K = np.concatenate((K, np.concatenate((self.p[-1:], np.zeros(m - 1))).reshape(1, -1)))
+        K = np.concatenate((self.phi[:-1].reshape((-1, 1)), np.identity(m - 1)), axis=1)
+        self.K = np.concatenate((K, np.concatenate((self.phi[-1:], np.zeros(m - 1))).reshape(1, -1)))
         self.Q = sigma ** 2 * np.identity(m)
         self.Z = np.zeros((1, m))
         self.Z[0, 0] = 1.0
