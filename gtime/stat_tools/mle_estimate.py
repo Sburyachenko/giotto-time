@@ -1,11 +1,7 @@
-import pandas as pd
 import numpy as np
 from numpy.linalg import multi_dot
-from .kalman_filter import KalmanFilter
+from gtime.stat_tools.kalman_filter import KalmanFilter
 from scipy.optimize import minimize
-
-log_yhat = []
-
 
 
 def _likelihood(X, mu, sigma, phi, theta):
@@ -20,17 +16,19 @@ def _likelihood(X, mu, sigma, phi, theta):
         LL_last = -0.5 * (np.log(np.abs(F)) + multi_dot([nu, np.linalg.inv(F), np.transpose(nu)]) + np.log(2 * np.pi))
         a, p = kalman.update(a_hat, p_hat, F, nu)
         loglikelihood += LL_last
-
-    return loglikelihood
+    print(F, loglikelihood)
+    return float(loglikelihood)
 
 
 def _run_mle(params, X):
-    m = (len(params) - 2) / 2
+    m = (len(params) - 2) // 2
+    if len(params.shape) > 1:
+        print(params.shape)
     mu = params[0]
     sigma = params[1]
     phi = params[2:m + 2]
     theta = params[-m:]
-    return _likelihood(X, mu, sigma, phi, theta)
+    return -_likelihood(X, mu, sigma, phi, theta)
 
 
 class MLEModel:
@@ -43,45 +41,17 @@ class MLEModel:
     def fit(self, X):
 
         p0 = np.random.random(self.order[0])
-        q0 = np.random.random(self.order[2])
+        q0 = np.random.random(self.order[1])
         p = np.pad(p0, (0, self.length - len(p0)), mode='constant')
-        q = np.pad(q0, (0, self.length - len(q0) + 1), mode='constant')
-        mu = np.random.random()
-        sigma = abs(np.random.random())
+        q = np.pad(q0, (0, self.length - len(q0)), mode='constant')
+        mu = np.random.random(1)
+        sigma = abs(np.random.random(1))
         initial_params = np.concatenate([mu, sigma, p, q])
-        Xmin = minimize(lambda phi: _run_mle(phi, X), x0=initial_params)
-        self.mu = Xmin[0][0]
-        self.sigma = Xmin[0][1]
-        self.p = Xmin[0][2:self.length+2]
-        self.q = Xmin[0][-self.length+2:]
+        Xmin = minimize(lambda phi: _run_mle(phi, X), x0=initial_params, tol=0.1)
+        fitted_params = Xmin['x']
+        self.mu = fitted_params[0]
+        self.sigma = fitted_params[1]
+        self.p = fitted_params[2:self.length+2]
+        self.q = fitted_params[-self.length:]
 
         return self
-
-
-def gen_y(size, coefs):
-
-    mu, sigma, p, q = coefs
-    m = max(len(p), len(q))
-    y = np.zeros(size + m)
-    epses = np.zeros(len(q))
-    y[:m] = 0.0
-    for i in range(m, size + m):
-        eps = np.random.standard_normal(1) * sigma**2
-        y[i] = mu + eps + np.dot(p, y[i-m:i]) + np.dot(q, epses)
-        epses[1:] = epses[:-1]
-        epses[0] = eps
-    return y[m:]
-
-
-if __name__ == '__main__':
-
-    np.random.seed(0)
-    p = np.array([0.5])
-    q = np.array([0.0])
-    mu = 0.0
-    sigma = 0.7
-    y = gen_y(1000, (mu, sigma, p, q))
-
-
-
-    pd.DataFrame(np.array([np.array(log_yhat).flatten(), y])).T.to_clipboard()

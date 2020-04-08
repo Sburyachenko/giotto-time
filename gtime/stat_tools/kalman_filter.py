@@ -1,5 +1,5 @@
 import numpy as np
-from .tools import mat_square
+from gtime.stat_tools.tools import mat_square
 from numpy.linalg import multi_dot
 
 
@@ -36,8 +36,7 @@ class KalmanFilter:
         a_hat = np.matmul(self.K, a)
         p_hat = mat_square(p, self.K) + mat_square(self.Q, self.R)
         # p_hat = multi_dot([self.K, p, np.transpose(self.K)]) + self.Q
-        y_hat = np.matmul(self.Z, a_hat)
+        y_hat = np.matmul(self.Z, a_hat) + self.mu
         F = mat_square(p_hat, self.Z)
         nu = y - y_hat
         return a_hat, p_hat, y_hat, F, nu
-
