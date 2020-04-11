@@ -9,6 +9,7 @@ from numpy.linalg import multi_dot
 # https://uh.edu/~bsorense/kalman.pdf
 # https://arxiv.org/pdf/1204.0375.pdf
 # https://www.stat.purdue.edu/~chong/stat520/ps/statespace.pdf
+# http://www.stat.ucla.edu/~frederic/221/W17/221ch3.pdf
 
 class KalmanFilter:
 
@@ -35,7 +36,6 @@ class KalmanFilter:
     def predict(self, a, p, y):
         a_hat = np.matmul(self.K, a)
         p_hat = mat_square(p, self.K) + mat_square(self.Q, self.R)
-        # p_hat = multi_dot([self.K, p, np.transpose(self.K)]) + self.Q
         y_hat = np.matmul(self.Z, a_hat) + self.mu
         F = mat_square(p_hat, self.Z)
         nu = y - y_hat
