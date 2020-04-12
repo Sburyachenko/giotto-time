@@ -1,27 +1,32 @@
 import numpy as np
 from numpy.linalg import multi_dot
 from gtime.stat_tools.kalman_filter import KalmanFilter
-from scipy.optimize import minimize
+from scipy.optimize import minimize, Bounds
 from scipy.signal import lfilter
 import time
 
 
-def _likelihood(X, mu, sigma, phi, theta):
+def _likelihood(X, mu, sigma, phi, theta, errors=False):
 
     loglikelihood = 0.0
     m = phi.size
     kalman = KalmanFilter(mu, sigma, phi, theta)
     p = np.identity(m)
     a = np.zeros((m, 1))
-    for x in X.flatten():
+    eps = np.zeros(len(X))
+    for i, x in enumerate(X):
         a_hat, p_hat, y_hat, F, nu = kalman.predict(a, p, x)
         LL_last = -0.5 * (np.log(np.abs(F)) + multi_dot([nu, np.linalg.inv(F), np.transpose(nu)]) + np.log(2 * np.pi))
         a, p = kalman.update(a_hat, p_hat, F, nu)
+        eps[i] = nu
         loglikelihood += LL_last
-    return float(loglikelihood)
+    if errors:
+        return eps
+    else:
+        return -float(loglikelihood)
 
 
-def _run_mle(params, X, len_p):
+def _run_mle(params, X, len_p, errors=False):
     if len(params.shape) > 1:
         print(params.shape)
     mu = params[0]
@@ -32,10 +37,34 @@ def _run_mle(params, X, len_p):
     theta = params[len_p + 2:]
     phi = np.pad(phi, (0, max_lag - len_p), mode='constant', constant_values=(0, 0))
     theta = np.pad(theta, (0, max_lag - len_q), mode='constant', constant_values=(0, 0))
-    return -_likelihood(X, mu, sigma, phi, theta)
+    return _likelihood(X, mu, sigma, phi, theta, errors)
 
 
-def _run_css(params, X, len_p):
+def _ar_transparams(params): # TODO do not copy directly!!!!!
+
+    newparams = np.tanh(params/2)
+    tmp = np.tanh(params/2)
+    for j in range(1,len(params)):
+        a = newparams[j]
+        for kiter in range(j):
+            tmp[kiter] -= a * newparams[j-kiter-1]
+        newparams[:j] = tmp[:j]
+    return newparams
+
+def _ma_transparams(params):
+
+    newparams = ((1-np.exp(-params))/(1+np.exp(-params))).copy()
+    tmp = ((1-np.exp(-params))/(1+np.exp(-params))).copy()
+
+    # levinson-durbin to get macf
+    for j in range(1,len(params)):
+        b = newparams[j]
+        for kiter in range(j):
+            tmp[kiter] += b * newparams[j-kiter-1]
+        newparams[:j] = tmp[:j]
+    return newparams
+
+def _run_css(params, X, len_p, errors=False, transform=True):
 
     if len(params.shape) > 1:
         print(params.shape)
@@ -44,14 +73,20 @@ def _run_css(params, X, len_p):
     nobs = len(X) - len_p
     phi = np.r_[1, params[2:len_p + 2]]
     theta = np.r_[1, params[len_p + 2:]]
+
+    # if transform:
+    #     phi = _ar_transparams(phi)
+    #     theta = _ma_transparams(theta)
+
     y = X - mu
     eps = lfilter(phi, theta, y)
-    ssr = np.dot(eps, eps)
-    sigma2 = ssr / nobs
-    loglikelihood = -nobs / 2. * (np.log(2 * np.pi) + np.log(sigma2)) - ssr / (2. * sigma2)
-    return -loglikelihood
-
-
+    if errors:
+        return eps
+    else:
+        ssr = np.dot(eps, eps)
+        sigma2 = ssr / nobs
+        loglikelihood = -nobs / 2. * (np.log(2 * np.pi) + np.log(sigma2)) - ssr / (2. * sigma2)
+        return -loglikelihood
 
 
 class MLEModel:
@@ -61,33 +96,52 @@ class MLEModel:
         self.length = max(order[0], order[1] + 1)
         self.order = order
         self.method = method
+        p0 = np.random.random(order[0])
+        q0 = np.random.random(order[1])
+        self.parameters = np.r_[0.0, 0.0, p0, q0]
 
     def fit(self, X):
 
         start = time.time()
 
-        p0 = np.random.random(self.order[0])
-        q0 = np.random.random(self.order[1])
+
         mu = X.mean(keepdims=True)
         sigma = X.std(keepdims=True)
-        initial_params = np.concatenate([mu, sigma, p0, q0])
+        self.parameters[0] = mu
+        self.parameters[1] = sigma
 
         if self.method == 'mle':
-            Xmin = minimize(lambda phi: _run_mle(phi, X, len_p=self.order[0]), x0=initial_params, tol=0.001, method='L-BFGS-B')
+            Xmin = minimize(lambda phi: _run_mle(phi, X, len_p=self.order[0]), x0=self.parameters, tol=0.001, method='L-BFGS-B')
         elif self.method == 'css':
-            Xmin = minimize(lambda phi: _run_css(phi, X, len_p=self.order[0]), x0=initial_params,
-                            method='L-BFGS-B')
+            upper_bound = np.r_[np.inf, np.inf, np.ones(len(self.parameters) - 2)]
+            lower_bound = np.r_[-np.inf, 0.0, -np.ones(len(self.parameters) - 2)]
+            bounds = Bounds(lower_bound, upper_bound)
+            Xmin = minimize(lambda phi: _run_css(phi, X, len_p=self.order[0]), x0=self.parameters,
+                            method='L-BFGS-B', bounds=bounds)
         else:
-            x_css = minimize(lambda phi: _run_css(phi, X, len_p=self.order[0]), x0=initial_params)['x']
-            Xmin = minimize(lambda phi: _run_mle(phi, X, len_p=self.order[0]), x0=x_css, tol=0.001,
+            upper_bound = np.r_[np.inf, np.inf, np.ones(len(self.parameters) - 2)]
+            lower_bound = np.r_[-np.inf, 0.0, -np.ones(len(self.parameters) - 2)]
+            bounds = Bounds(lower_bound, upper_bound)
+            x0_css = minimize(lambda phi: _run_css(phi, X, len_p=self.order[0]), x0=self.parameters, bounds=bounds)['x']
+            Xmin = minimize(lambda phi: _run_mle(phi, X, len_p=self.order[0]), x0=x0_css, tol=0.001,
                             method='L-BFGS-B')
 
         print(f'Time: {time.time() - start:.2f} s')
         print(Xmin['fun'])
         fitted_params = Xmin['x']
+        self.parameters = fitted_params
         self.mu = fitted_params[0]
         self.sigma = fitted_params[1]
-        self.p = fitted_params[2:len(p0) + 2]
-        self.q = fitted_params[-len(q0):]
+        self.phi = fitted_params[2:self.order[0] + 2]
+        self.theta = fitted_params[-self.order[1]:]
 
         return self
+
+    def get_errors(self, X):
+        if self.method in ['mle', 'css-mle']:
+            errors = _run_mle(self.parameters, X, self.order[0], errors=True)
+        else:
+            errors = _run_css(self.parameters, X, self.order[0], errors=True)
+        return errors
+
+
