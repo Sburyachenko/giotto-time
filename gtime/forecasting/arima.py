@@ -15,53 +15,44 @@ def _forecast_arma(n, phi, theta, x0, eps0):
     return x[len_init:]
 
 def _fit_predict_one(X, horizon, order, method):
+    X = X.copy()
     model = MLEModel((order[0], order[2]), method)
     model.fit(X)
+    print(model.phi, model.theta)
     errors = model.get_errors(X)
     x0 = X[-order[0]:] if order[0] > 0 else np.array([])
+    mu = x0[-1]
+    X -= mu
     eps0 = errors[-order[2]:] if order[2] > 0 else np.array([])
-    forecast = _forecast_arma(horizon, model.phi, model.theta, x0, eps0)
+    forecast = _forecast_arma(horizon, model.phi, model.theta, x0, eps0) + mu
     return forecast
 
-class ARMA(SimpleForecaster):
+class ARIMA(SimpleForecaster):
 
-    def __init__(self, order, method='mle-css'):
+    def __init__(self, order, method='css-mle'):
         self.order = order
         self.method = method
         self.model = None
 
     def fit(self, X, y):
-        # self.model = MLEModel((self.order[0], self.order[2]), self.method)
         self.train = X
         self.len_train = len(X)
-        # self.model.fit(X)
         super().fit(X, y)
         return self
 
     def _predict(self, X):
         n = len(X)
+        i_order = self.order[1]
         x_np = pd.concat([self.train, X]).values.flatten()
-        y_pred = map(lambda x: _fit_predict_one(x, self.horizon_, self.order, self.method),
-                              [x_np[:self.len_train+i+1] for i in range(n)])
-        return np.array(list(y_pred))
+        diff_vals = np.zeros((n, i_order))
+        for i in range(i_order):
+            diff_vals[:, i] = np.diff(x_np, n=i)[-n:]
 
-
-class ARIMA(ARMA):
-
-    def fit(self, X, y):
-        for i in range(self.order[1]):
-            X = np.diff(X)
-        self = super(ARIMA, self).fit(X, y)
-        return self
-
-    def _predict(self, X):
-        diff_vals = np.zeros(self.order[1])
-        for i in range(self.order[1]):
-            diff_vals[i] = X[0]
-            X = np.diff(X)
-        y_pred = super(ARIMA, self)._predict(X, y)
-        for i in range(self.order[1]):
-            y_pred = np.concatenate(diff_vals[i], y_pred).cumsum()
+        x_np = np.diff(x_np)
+        y_pred = np.array(list(map(lambda x: _fit_predict_one(x, self.horizon_, self.order, self.method),
+                              [x_np[:self.len_train+i+1] for i in range(n)])))
+        y_pred = np.concatenate([diff_vals, y_pred], axis=1)
+        y_pred = y_pred.cumsum(axis=1)[:, 1:]
         return y_pred
 
 
@@ -83,7 +74,7 @@ if __name__ == '__main__':
     features = [
         ("s1", Shift(0), make_column_selector()),
     ]
-    model = TimeSeriesForecastingModel(features=features, horizon=100, model=ARMA((2, 0, 2), method='css'))
+    model = TimeSeriesForecastingModel(features=features, horizon=100, model=ARIMA((2, 1, 2), method='css'))
 
     model.fit(df_train, None)
     d = model.predict(df_test)

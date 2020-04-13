@@ -113,7 +113,7 @@ class MLEModel:
         if self.method == 'mle':
             Xmin = minimize(lambda phi: _run_mle(phi, X, len_p=self.order[0]), x0=self.parameters, tol=0.001, method='L-BFGS-B')
         elif self.method == 'css':
-            upper_bound = np.r_[np.inf, np.inf, np.ones(len(self.parameters) - 2)]
+            upper_bound = np.r_[np.inf, np.inf, np.ones(len(self.parameters) - 2)]  # TODO a very simple stationarity restriction, could be better
             lower_bound = np.r_[-np.inf, 0.0, -np.ones(len(self.parameters) - 2)]
             bounds = Bounds(lower_bound, upper_bound)
             Xmin = minimize(lambda phi: _run_css(phi, X, len_p=self.order[0]), x0=self.parameters,
