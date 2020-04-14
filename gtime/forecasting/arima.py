@@ -18,14 +18,18 @@ def _fit_predict_one(X, horizon, order, method):
     X = X.copy()
     model = MLEModel((order[0], order[2]), method)
     model.fit(X)
-    print(model.phi, model.theta)
+    print(model.mu, model.phi, model.theta)
     errors = model.get_errors(X)
     x0 = X[-order[0]:] if order[0] > 0 else np.array([])
-    mu = x0[-1]
+    mu = model.mu
     X -= mu
     eps0 = errors[-order[2]:] if order[2] > 0 else np.array([])
     forecast = _forecast_arma(horizon, model.phi, model.theta, x0, eps0) + mu
-    return forecast
+    param_dict = {'mu': mu,
+                  'phi': model.phi,
+                  'theta': model.theta
+                  }
+    return forecast, param_dict
 
 class ARIMA(SimpleForecaster):
 
@@ -48,12 +52,15 @@ class ARIMA(SimpleForecaster):
         for i in range(i_order):
             diff_vals[:, i] = np.diff(x_np, n=i)[-n:]
 
-        x_np = np.diff(x_np)
-        y_pred = np.array(list(map(lambda x: _fit_predict_one(x, self.horizon_, self.order, self.method),
-                              [x_np[:self.len_train+i+1] for i in range(n)])))
-        y_pred = np.concatenate([diff_vals, y_pred], axis=1)
-        y_pred = y_pred.cumsum(axis=1)[:, 1:]
-        return y_pred
+        x_np = np.diff(x_np, n=i_order)
+        res = list(map(lambda x: _fit_predict_one(x, self.horizon_, self.order, self.method),
+                              [x_np[:self.len_train+i+1] for i in range(n)]))
+        y_pred = np.array([x[0] for x in res])
+        self.params = pd.DataFrame([x[1] for x in res], index=X.index)
+        for i in range(i_order):
+            y_pred = np.concatenate([diff_vals[:, [-i-1]], y_pred], axis=1).cumsum(axis=1)
+        # y_pred = y_pred.cumsum(axis=1)
+        return y_pred[:, i_order:]
 
 
 if __name__ == '__main__':
@@ -69,13 +76,13 @@ if __name__ == '__main__':
     df_close = df_sp.set_index('Date')['Close']
     time_series_preparation = TimeSeriesPreparation()
     df = time_series_preparation.transform(df_close)
-    df_train = df.iloc[:-100]
-    df_test = df.iloc[-100:]
+    df_train = df.iloc[:600]
+    df_test = df.iloc[500:600]
     features = [
         ("s1", Shift(0), make_column_selector()),
     ]
-    model = TimeSeriesForecastingModel(features=features, horizon=100, model=ARIMA((2, 1, 2), method='css'))
+    model = TimeSeriesForecastingModel(features=features, horizon=100, model=ARIMA((1, 1, 0), method='css'))
 
     model.fit(df_train, None)
-    d = model.predict(df_test)
+    d = model.predict(df_test.iloc[:2])
     print('A')

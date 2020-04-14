@@ -74,10 +74,6 @@ def _run_css(params, X, len_p, errors=False, transform=True):
     phi = np.r_[1, params[2:len_p + 2]]
     theta = np.r_[1, params[len_p + 2:]]
 
-    # if transform:
-    #     phi = _ar_transparams(phi)
-    #     theta = _ma_transparams(theta)
-
     y = X - mu
     eps = lfilter(phi, theta, y)
     if errors:
@@ -133,7 +129,7 @@ class MLEModel:
         self.mu = fitted_params[0]
         self.sigma = fitted_params[1]
         self.phi = fitted_params[2:self.order[0] + 2]
-        self.theta = fitted_params[-self.order[1]:]
+        self.theta = fitted_params[-self.order[1]:] if self.order[1] > 0 else np.array([])
 
         return self
 
