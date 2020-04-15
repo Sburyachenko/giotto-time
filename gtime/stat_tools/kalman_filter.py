@@ -33,10 +33,10 @@ class KalmanFilter:
         p = p_hat - multi_dot([gain, self.Z, np.transpose(p_hat)])
         return a, p
 
-    def predict(self, a, p, y):
+    def predict(self, a, p, x):
         a_hat = np.matmul(self.K, a)
         p_hat = mat_square(p, self.K) + mat_square(self.Q, self.R)
-        y_hat = np.matmul(self.Z, a_hat) + self.mu
+        x_hat = np.matmul(self.Z, a_hat) + self.mu
         F = mat_square(p_hat, self.Z)
-        nu = y - y_hat
-        return a_hat, p_hat, y_hat, F, nu
+        nu = x - x_hat
+        return a_hat, p_hat, x_hat, F, nu

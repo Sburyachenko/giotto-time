@@ -1,6 +1,7 @@
 import numpy as np
 from numpy.linalg import multi_dot
 from gtime.stat_tools.kalman_filter import KalmanFilter
+from gtime.stat_tools.tools import mat_square
 from scipy.optimize import minimize, Bounds
 from scipy.signal import lfilter
 import time
@@ -15,8 +16,8 @@ def _likelihood(X, mu, sigma, phi, theta, errors=False):
     a = np.zeros((m, 1))
     eps = np.zeros(len(X))
     for i, x in enumerate(X):
-        a_hat, p_hat, y_hat, F, nu = kalman.predict(a, p, x)
-        LL_last = -0.5 * (np.log(np.abs(F)) + multi_dot([nu, np.linalg.inv(F), np.transpose(nu)]) + np.log(2 * np.pi))
+        a_hat, p_hat, x_hat, F, nu = kalman.predict(a, p, x)
+        LL_last = -0.5 * (np.log(2 * np.pi * np.abs(F)) + mat_square(np.linalg.inv(F), nu))
         a, p = kalman.update(a_hat, p_hat, F, nu)
         eps[i] = nu
         loglikelihood += LL_last
