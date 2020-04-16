@@ -82,7 +82,7 @@ def _run_css(params, X, len_p, errors=False, transform=True):
     else:
         ssr = np.dot(eps, eps)
         sigma2 = ssr / nobs
-        loglikelihood = -nobs / 2. * (np.log(2 * np.pi) + np.log(sigma2)) - ssr / (2. * sigma2)
+        loglikelihood = -nobs / 2. * (np.log(2 * np.pi * sigma2)) - ssr / (2. * sigma2)
         return -loglikelihood
 
 
