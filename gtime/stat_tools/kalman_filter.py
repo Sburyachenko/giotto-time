@@ -3,14 +3,6 @@ from gtime.stat_tools.tools import mat_square
 from numpy.linalg import multi_dot
 
 
-# https://faculty.washington.edu/eeholmes/Files/Intro_to_kalman.pdf
-# https://www.utsc.utoronto.ca/~sdamouras/courses/STAD57H3_W13/Lecture%2014/Lecture%2014%20Annotated.pdf
-# https://towardsdatascience.com/the-kalman-filter-and-maximum-likelihood-9861666f6742
-# https://uh.edu/~bsorense/kalman.pdf
-# https://arxiv.org/pdf/1204.0375.pdf
-# https://www.stat.purdue.edu/~chong/stat520/ps/statespace.pdf
-# http://www.stat.ucla.edu/~frederic/221/W17/221ch3.pdf
-
 class KalmanFilter:
 
     def __init__(self, mu, sigma, phi, theta):

@@ -67,13 +67,11 @@ def _ma_transparams(params):
 
 def _run_css(params, X, len_p, errors=False, transform=True):
 
-    if len(params.shape) > 1:
-        print(params.shape)
 
     mu = params[0]
     nobs = len(X) - len_p
-    phi = np.r_[1, params[2:len_p + 2]]
-    theta = np.r_[1, params[len_p + 2:]]
+    phi = np.r_[1, _ar_transparams(params[2:len_p + 2])]
+    theta = np.r_[1, _ma_transparams(params[len_p + 2:])]
 
     y = X - mu
     eps = lfilter(phi, theta, y)
@@ -129,8 +127,8 @@ class MLEModel:
         self.parameters = fitted_params
         self.mu = fitted_params[0]
         self.sigma = fitted_params[1]
-        self.phi = fitted_params[2:self.order[0] + 2]
-        self.theta = fitted_params[-self.order[1]:] if self.order[1] > 0 else np.array([])
+        self.phi = _ar_transparams(fitted_params[2:self.order[0] + 2])
+        self.theta = _ma_transparams(fitted_params[-self.order[1]:] if self.order[1] > 0 else np.array([]))
 
         return self
 

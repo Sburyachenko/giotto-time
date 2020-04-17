@@ -12,6 +12,7 @@ from .simple_models import (
     DriftForecaster,
     AverageForecaster,
 )
+from .arima import ARIMAForecaster
 
 __all__ = [
     "GAR",
@@ -23,4 +24,5 @@ __all__ = [
     "SeasonalNaiveForecaster",
     "DriftForecaster",
     "AverageForecaster",
+    "ARIMAForecaster",
 ]
