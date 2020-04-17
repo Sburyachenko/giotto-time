@@ -123,8 +123,8 @@ class MLEModel:
             Xmin = minimize(lambda phi: _run_mle(phi, X, len_p=self.order[0]), x0=x0_css, tol=0.001,
                             method='L-BFGS-B')
 
-        print(f'Time: {time.time() - start:.2f} s')
-        print(Xmin['fun'])
+        # print(f'Time: {time.time() - start:.2f} s')
+        # print(Xmin['fun'])
         fitted_params = Xmin['x']
         self.parameters = fitted_params
         self.mu = fitted_params[0]

@@ -5,29 +5,31 @@ from gtime.stat_tools.mle_estimate import MLEModel # TODO better import
 
 
 def _forecast_arma(n, phi, theta, x0, eps0):
-    len_init = len(x0)
     len_ar = len(phi)
     len_ma = len(theta)
     x = np.r_[x0, np.zeros(n)]
     eps = np.r_[eps0, np.zeros(n)]
-    for i in range(len_init, n + len_init):
-        x[i] = np.dot(phi, x[i - len_ar:i]) + np.dot(theta, eps[i - len_ma:i])
-    return x[len_init:]
+    for i in range(n):
+        x[i+1] = np.dot(phi, x[i:i + len_ar]) + np.dot(theta, eps[i:i + len_ma])
+    return x[len_ar:]
 
 def _fit_predict_one(X, horizon, order, method):
     X = X.copy()
     model = MLEModel((order[0], order[2]), method)
     model.fit(X)
-    print(model.mu, model.phi, model.theta)
+    # print(model.mu, model.phi, model.theta)
     errors = model.get_errors(X)
-    x0 = X[-order[0]:] if order[0] > 0 else np.array([])
     mu = model.mu
     X -= mu
+    x0 = X[-order[0]:] if order[0] > 0 else np.array([])
     eps0 = errors[-order[2]:] if order[2] > 0 else np.array([])
+    print(x0, eps0)
     forecast = _forecast_arma(horizon, model.phi, model.theta, x0, eps0) + mu
+    # forecast = _forecast_arma(horizon, model.phi, model.theta, x0, eps0)
     param_dict = {'mu': mu,
                   'phi': model.phi,
-                  'theta': model.theta
+                  'theta': model.theta,
+                  'errors': errors
                   }
     return forecast, param_dict
 
