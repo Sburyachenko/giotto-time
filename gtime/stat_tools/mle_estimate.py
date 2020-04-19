@@ -2,7 +2,7 @@ import numpy as np
 from numpy.linalg import multi_dot
 from gtime.stat_tools.kalman_filter import KalmanFilter
 from gtime.stat_tools.tools import mat_square
-from scipy.optimize import minimize, Bounds
+from scipy.optimize import minimize, Bounds, NonlinearConstraint
 from scipy.signal import lfilter
 import time
 
@@ -65,16 +65,23 @@ def _ma_transparams(params):
         newparams[:j] = tmp[:j]
     return newparams
 
-def _run_css(params, X, len_p, errors=False, transform=True):
+def _run_css(params, X, len_p, errors=False, transform=False):
 
 
     mu = params[0]
     nobs = len(X) - len_p
-    phi = np.r_[1, _ar_transparams(params[2:len_p + 2])]
-    theta = np.r_[1, _ma_transparams(params[len_p + 2:])]
+    if transform:
+        phi = np.r_[1, _ar_transparams(-params[2:len_p + 2])]
+        theta = np.r_[1, _ma_transparams(params[len_p + 2:])]
+    else:
+        phi = np.r_[1, -params[2:len_p + 2]]
+        theta = np.r_[1, params[len_p + 2:]]
 
     y = X - mu
-    eps = lfilter(phi, theta, y)
+    zi = np.zeros((max(len(phi), len(theta)) - 1))
+    for i in range(len_p): #TODO understand how it works
+        zi[i] = sum(-phi[:i + 1][::-1] * y[:i + 1])
+    eps = lfilter(phi, theta, y, zi=zi)[0][len_p:]
     if errors:
         return eps
     else:
@@ -106,13 +113,25 @@ class MLEModel:
         self.parameters[1] = sigma
 
         if self.method == 'mle':
-            Xmin = minimize(lambda phi: _run_mle(phi, X, len_p=self.order[0]), x0=self.parameters, tol=0.001, method='L-BFGS-B')
+            Xmin = minimize(lambda phi: _run_mle(phi, X, len_p=self.order[0]), x0=self.parameters, method='L-BFGS-B')
         elif self.method == 'css':
-            upper_bound = np.r_[np.inf, np.inf, np.ones(len(self.parameters) - 2)]  # TODO a very simple stationarity restriction, could be better
-            lower_bound = np.r_[-np.inf, 0.0, -np.ones(len(self.parameters) - 2)]
-            bounds = Bounds(lower_bound, upper_bound)
-            Xmin = minimize(lambda phi: _run_css(phi, X, len_p=self.order[0]), x0=self.parameters,
-                            method='L-BFGS-B', bounds=bounds)
+
+            def _rootz(x, len_p): # TODO refactor better
+                phi = x[2:2 + len_p]
+                theta = x[2 + len_p:]
+                phi_roots = np.abs(np.roots(np.r_[-phi[::-1], 1.0]))
+                theta_roots = np.abs(np.roots(np.r_[theta[::-1], 1.0]))
+                return np.r_[2.0, 2.0, phi_roots, theta_roots]
+
+            bounds = NonlinearConstraint(lambda x: _rootz(x, self.order[0]),
+                                         lb=np.ones(len(self.parameters)),
+                                         ub=np.inf * np.ones(len(self.parameters))
+                                         )
+            # upper_bound = np.r_[np.inf, np.inf, np.ones(len(self.parameters) - 2)]  # TODO a very simple stationarity restriction, could be better
+            # lower_bound = np.r_[-np.inf, 0.0, -np.ones(len(self.parameters) - 2)]
+            # bounds = Bounds(lower_bound, upper_bound)
+            Xmin = minimize(lambda phi: _run_css(phi, X, len_p=self.order[0], transform=False),
+                            x0=self.parameters, method='SLSQP', constraints=bounds)
         else:
             upper_bound = np.r_[np.inf, np.inf, np.ones(len(self.parameters) - 2)]
             lower_bound = np.r_[-np.inf, 0.0, -np.ones(len(self.parameters) - 2)]
@@ -122,14 +141,16 @@ class MLEModel:
                             method='L-BFGS-B')
 
         # print(f'Time: {time.time() - start:.2f} s')
-        # print(Xmin['fun'])
+        print(Xmin['fun'])
+        print(Xmin['x'])
         fitted_params = Xmin['x']
         self.parameters = fitted_params
         self.mu = fitted_params[0]
         self.sigma = fitted_params[1]
-        self.phi = _ar_transparams(fitted_params[2:self.order[0] + 2])
-        self.theta = _ma_transparams(fitted_params[-self.order[1]:] if self.order[1] > 0 else np.array([]))
-
+        # self.phi = _ar_transparams(fitted_params[2:self.order[0] + 2])
+        # self.theta = _ma_transparams(fitted_params[-self.order[1]:] if self.order[1] > 0 else np.array([]))
+        self.phi = fitted_params[2:self.order[0] + 2]
+        self.theta = fitted_params[-self.order[1]:] if self.order[1] > 0 else np.array([])
         return self
 
     def get_errors(self, X):
