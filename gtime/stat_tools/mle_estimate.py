@@ -7,19 +7,23 @@ from scipy.signal import lfilter
 import time
 
 
+def loglikelihood_ns(nu, F):
+    return -0.5 * (np.log(2 * np.pi * np.abs(F)) + mat_square(np.linalg.inv(F), nu))
+
 def _likelihood(X, mu, sigma, phi, theta, errors=False):
 
-    loglikelihood = 0.0
     m = phi.size
     kalman = KalmanFilter(mu, sigma, phi, theta)
-    p = np.identity(m)
-    a = np.zeros((m, 1))
     eps = np.zeros(len(X))
-    for i, x in enumerate(X):
-        a_hat, p_hat, x_hat, F, nu = kalman.predict(a, p, x)
-        LL_last = -0.5 * (np.log(2 * np.pi * np.abs(F)) + mat_square(np.linalg.inv(F), nu))
+    a_hat, p_hat, x_hat, F, nu = kalman.initial_predict(X[0])
+    LL_last = loglikelihood_ns(nu, F)
+    loglikelihood = LL_last
+    eps[0] = nu
+    for i, x in enumerate(X[1:]):
         a, p = kalman.update(a_hat, p_hat, F, nu)
+        a_hat, p_hat, x_hat, F, nu = kalman.predict(a, p, x)
         eps[i] = nu
+        LL_last = loglikelihood_ns(nu, F)
         loglikelihood += LL_last
     if errors:
         return eps
@@ -41,41 +45,14 @@ def _run_mle(params, X, len_p, errors=False):
     return _likelihood(X, mu, sigma, phi, theta, errors)
 
 
-def _ar_transparams(params): # TODO do not copy directly!!!!!
-
-    newparams = np.tanh(params/2)
-    tmp = np.tanh(params/2)
-    for j in range(1,len(params)):
-        a = newparams[j]
-        for kiter in range(j):
-            tmp[kiter] -= a * newparams[j-kiter-1]
-        newparams[:j] = tmp[:j]
-    return newparams
-
-def _ma_transparams(params):
-
-    newparams = ((1-np.exp(-params))/(1+np.exp(-params))).copy()
-    tmp = ((1-np.exp(-params))/(1+np.exp(-params))).copy()
-
-    # levinson-durbin to get macf
-    for j in range(1,len(params)):
-        b = newparams[j]
-        for kiter in range(j):
-            tmp[kiter] += b * newparams[j-kiter-1]
-        newparams[:j] = tmp[:j]
-    return newparams
-
 def _run_css(params, X, len_p, errors=False, transform=False):
 
 
     mu = params[0]
     nobs = len(X) - len_p
-    if transform:
-        phi = np.r_[1, _ar_transparams(-params[2:len_p + 2])]
-        theta = np.r_[1, _ma_transparams(params[len_p + 2:])]
-    else:
-        phi = np.r_[1, -params[2:len_p + 2]]
-        theta = np.r_[1, params[len_p + 2:]]
+
+    phi = np.r_[1, -params[2:len_p + 2]]
+    theta = np.r_[1, params[len_p + 2:]]
 
     y = X - mu
     zi = np.zeros((max(len(phi), len(theta)) - 1))
@@ -89,6 +66,14 @@ def _run_css(params, X, len_p, errors=False, transform=False):
         sigma2 = ssr / nobs
         loglikelihood = -nobs / 2. * (np.log(2 * np.pi * sigma2)) - ssr / (2. * sigma2)
         return -loglikelihood
+
+
+def _polynomial_roots(x, len_p):
+    phi = x[2:2 + len_p]
+    theta = x[2 + len_p:]
+    phi_roots = np.abs(np.roots(np.r_[-phi[::-1], 1.0]))
+    theta_roots = np.abs(np.roots(np.r_[theta[::-1], 1.0]))
+    return np.r_[2.0, 2.0, phi_roots, theta_roots] # TODO refactor 2.0
 
 
 class MLEModel:
@@ -112,43 +97,26 @@ class MLEModel:
         self.parameters[0] = mu
         self.parameters[1] = sigma
 
+        constraints = NonlinearConstraint(lambda x: _polynomial_roots(x, self.order[0]),
+                                     lb=np.ones(len(self.parameters)),
+                                     ub=np.inf * np.ones(len(self.parameters))
+                                     )
         if self.method == 'mle':
-            Xmin = minimize(lambda phi: _run_mle(phi, X, len_p=self.order[0]), x0=self.parameters, method='L-BFGS-B')
+            Xmin = minimize(lambda phi: _run_mle(phi, X, len_p=self.order[0]),
+                            x0=self.parameters, method='SLSQP', constraints=constraints)
         elif self.method == 'css':
-
-            def _rootz(x, len_p): # TODO refactor better
-                phi = x[2:2 + len_p]
-                theta = x[2 + len_p:]
-                phi_roots = np.abs(np.roots(np.r_[-phi[::-1], 1.0]))
-                theta_roots = np.abs(np.roots(np.r_[theta[::-1], 1.0]))
-                return np.r_[2.0, 2.0, phi_roots, theta_roots]
-
-            bounds = NonlinearConstraint(lambda x: _rootz(x, self.order[0]),
-                                         lb=np.ones(len(self.parameters)),
-                                         ub=np.inf * np.ones(len(self.parameters))
-                                         )
-            # upper_bound = np.r_[np.inf, np.inf, np.ones(len(self.parameters) - 2)]  # TODO a very simple stationarity restriction, could be better
-            # lower_bound = np.r_[-np.inf, 0.0, -np.ones(len(self.parameters) - 2)]
-            # bounds = Bounds(lower_bound, upper_bound)
             Xmin = minimize(lambda phi: _run_css(phi, X, len_p=self.order[0], transform=False),
-                            x0=self.parameters, method='SLSQP', constraints=bounds)
+                            x0=self.parameters, method='SLSQP', constraints=constraints)
         else:
-            upper_bound = np.r_[np.inf, np.inf, np.ones(len(self.parameters) - 2)]
-            lower_bound = np.r_[-np.inf, 0.0, -np.ones(len(self.parameters) - 2)]
-            bounds = Bounds(lower_bound, upper_bound)
-            x0_css = minimize(lambda phi: _run_css(phi, X, len_p=self.order[0]), x0=self.parameters, bounds=bounds)['x']
-            Xmin = minimize(lambda phi: _run_mle(phi, X, len_p=self.order[0]), x0=x0_css, tol=0.001,
-                            method='L-BFGS-B')
+            x0_css = minimize(lambda phi: _run_css(phi, X, len_p=self.order[0]),
+                              x0=self.parameters, method='SLSQP', constraints=constraints)['x']
+            Xmin = minimize(lambda phi: _run_mle(phi, X, len_p=self.order[0]),
+                            x0=x0_css, method='SLSQP', constraints=constraints)
 
-        # print(f'Time: {time.time() - start:.2f} s')
-        print(Xmin['fun'])
-        print(Xmin['x'])
         fitted_params = Xmin['x']
         self.parameters = fitted_params
         self.mu = fitted_params[0]
         self.sigma = fitted_params[1]
-        # self.phi = _ar_transparams(fitted_params[2:self.order[0] + 2])
-        # self.theta = _ma_transparams(fitted_params[-self.order[1]:] if self.order[1] > 0 else np.array([]))
         self.phi = fitted_params[2:self.order[0] + 2]
         self.theta = fitted_params[-self.order[1]:] if self.order[1] > 0 else np.array([])
         return self
