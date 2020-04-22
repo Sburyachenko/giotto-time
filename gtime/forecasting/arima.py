@@ -11,10 +11,11 @@ def _forecast_arma(n, mu, phi, theta, x0, eps0):
     len_ma = len(theta)
     x = np.r_[x0, np.zeros(n)]
     eps = np.r_[eps0, np.zeros(n)]
-    mu = mu * (1-phi.sum()) # TODO Why???
+    mu = mu * (1-phi.sum())  # TODO Why???
     for i in range(n):
         x[i + len_ar] = mu + np.dot(phi, x[i:i + len_ar]) + np.dot(theta, eps[i:i + len_ma])
     return x[len_ar:]
+
 
 def _fit_predict_one(X, horizon, order, method):
     X = X.copy()
@@ -26,9 +27,9 @@ def _fit_predict_one(X, horizon, order, method):
     # X -= mu
     x0 = X[-order[0]:] if order[0] > 0 else np.array([])
     eps0 = errors[-order[2]:] if order[2] > 0 else np.array([])
-    print(x0, eps0)
+    # print(x0, eps0)
     forecast = _forecast_arma(horizon, mu, model.phi, model.theta, x0, eps0)
-    print('Forecast: ', forecast.sum())
+    # print('Forecast: ', forecast.sum())
     # forecast = _forecast_arma(horizon, model.phi, model.theta, x0, eps0)
     param_dict = {'mu': mu,
                   'phi': model.phi,
@@ -63,7 +64,7 @@ class ARIMAForecaster(SimpleForecaster):
                               [x_np[:self.len_train+i+1] for i in range(n)]))
         y_pred = np.array([x[0] for x in res])
         self.params = pd.DataFrame([x[1] for x in res], index=X.index)
-        print('Dvals: ', diff_vals)
+        # print('Dvals: ', diff_vals)
         for i in range(i_order):
             y_pred = np.concatenate([diff_vals[:, [-i-1]], y_pred], axis=1).cumsum(axis=1)
         # y_pred = y_pred.cumsum(axis=1)
@@ -129,15 +130,16 @@ if __name__ == '__main__':
         print(normaltest(train_errors))
         return f, m2
 
-    run_giotto_arima(df_real, 101, (3, 1, 2), 'css')
-    from gtime.stat_tools.mle_estimate import _run_css
-    f, m = run_sm(df_real, 100, (3, 1, 2), 'css')
+    # run_giotto_arima(df_real, 101, (3, 1, 2), 'css')
+    from gtime.stat_tools.mle_estimate import _run_css, _run_mle
+    f, m = run_sm(df_real, 100, (3, 0, 2), 'mle')
 
 
     # mu_grid = np.linspace(1500, 3500, 100)
     # ar_grid = np.linspace(0.5, 1, 50)
-    l_g = _run_css(np.r_[f.params[0], 1.0, f.params[1:]], df_real.diff().dropna().iloc[:-100].values.flatten(), 3)
-    l_s = -m.loglike_css(f.params)
+    l_g = _run_mle(np.r_[f.params[0], np.sqrt(f.sigma2), f.params[1:]], df_real[:-100].values.flatten(), 3)
+    es = m.geterrors(f.params)
+    l_s = -m.loglike_kalman(f.params)
 
     # g = [[_run_css(np.array([x, np.sqrt(f.sigma2), y]), df_real.iloc[:-100].values.flatten(), 2) for x in mu_grid] for y in ar_grid]
     # h = [[-m.loglike_css(np.array([x, y])) for x in mu_grid] for y in ar_grid]

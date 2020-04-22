@@ -1,14 +1,9 @@
 import numpy as np
-from numpy.linalg import multi_dot
 from gtime.stat_tools.kalman_filter import KalmanFilter
-from gtime.stat_tools.tools import mat_square
-from scipy.optimize import minimize, Bounds, NonlinearConstraint
+from gtime.stat_tools.tools import loglikelihood_ns, arma_polynomial_roots
+from scipy.optimize import minimize, NonlinearConstraint
 from scipy.signal import lfilter
-import time
 
-
-def loglikelihood_ns(nu, F):
-    return -0.5 * (np.log(2 * np.pi * np.abs(F)) + mat_square(np.linalg.inv(F), nu))
 
 def _likelihood(X, mu, sigma, phi, theta, errors=False):
 
@@ -32,8 +27,6 @@ def _likelihood(X, mu, sigma, phi, theta, errors=False):
 
 
 def _run_mle(params, X, len_p, errors=False):
-    if len(params.shape) > 1:
-        print(params.shape)
     mu = params[0]
     sigma = params[1]
     len_q = len(params) - len_p - 2
@@ -45,8 +38,7 @@ def _run_mle(params, X, len_p, errors=False):
     return _likelihood(X, mu, sigma, phi, theta, errors)
 
 
-def _run_css(params, X, len_p, errors=False, transform=False):
-
+def _run_css(params, X, len_p, errors=False):
 
     mu = params[0]
     nobs = len(X) - len_p
@@ -68,14 +60,6 @@ def _run_css(params, X, len_p, errors=False, transform=False):
         return -loglikelihood
 
 
-def _polynomial_roots(x, len_p):
-    phi = x[2:2 + len_p]
-    theta = x[2 + len_p:]
-    phi_roots = np.abs(np.roots(np.r_[-phi[::-1], 1.0]))
-    theta_roots = np.abs(np.roots(np.r_[theta[::-1], 1.0]))
-    return np.r_[2.0, 2.0, phi_roots, theta_roots] # TODO refactor 2.0
-
-
 class MLEModel:
 
     def __init__(self, order, method='mle'):
@@ -83,21 +67,18 @@ class MLEModel:
         self.length = max(order[0], order[1] + 1)
         self.order = order
         self.method = method
-        p0 = np.random.random(order[0])
+        p0 = np.random.random(order[0]) #TODO can be better?
         q0 = np.random.random(order[1])
         self.parameters = np.r_[0.0, 0.0, p0, q0]
 
     def fit(self, X):
-
-        start = time.time()
-
 
         mu = X.mean(keepdims=True)
         sigma = X.std(keepdims=True)
         self.parameters[0] = mu
         self.parameters[1] = sigma
 
-        constraints = NonlinearConstraint(lambda x: _polynomial_roots(x, self.order[0]),
+        constraints = NonlinearConstraint(lambda x: arma_polynomial_roots(x, self.order[0]),
                                      lb=np.ones(len(self.parameters)),
                                      ub=np.inf * np.ones(len(self.parameters))
                                      )
@@ -105,7 +86,7 @@ class MLEModel:
             Xmin = minimize(lambda phi: _run_mle(phi, X, len_p=self.order[0]),
                             x0=self.parameters, method='SLSQP', constraints=constraints)
         elif self.method == 'css':
-            Xmin = minimize(lambda phi: _run_css(phi, X, len_p=self.order[0], transform=False),
+            Xmin = minimize(lambda phi: _run_css(phi, X, len_p=self.order[0]),
                             x0=self.parameters, method='SLSQP', constraints=constraints)
         else:
             x0_css = minimize(lambda phi: _run_css(phi, X, len_p=self.order[0]),
