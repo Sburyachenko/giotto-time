@@ -45,7 +45,10 @@ class ARIMAForecaster(SimpleForecaster):
         np_x = self._deintegrate(np_x)
         model = MLEModel((self.n_ar, self.n_ma), self.method)
         model.fit(np_x)
-        self.last_errors_ = model.get_errors(np_x)[-self.n_ma:]
+        self.errors_ = model.get_errors(np_x)
+        self.mu_ = model.mu
+        self.phi_ = model.phi
+        self.theta_ = model.theta
         self.model = model
         super().fit(X, y)
         return self
@@ -56,7 +59,7 @@ class ARIMAForecaster(SimpleForecaster):
         train_test_diff = X.index.min().start_time - self.last_train_values_.index.max().end_time
         if train_test_diff.value == 1:
             X = pd.concat([self.last_train_values_, X])
-            errors = np.r_[self.last_errors_, np.zeros(n)]
+            errors = np.r_[self.errors_[-self.n_ma:], np.zeros(n)]
         else:
             last_index = pd.period_range(periods=self.n_ar + self.order[1] + 1, end=X.index[0])[:-1]
             last_values = pd.DataFrame(X.iloc[0], index=last_index)
@@ -80,27 +83,27 @@ class ARIMAForecaster(SimpleForecaster):
 
 
 
-if __name__ == '__main__':
+# if __name__ == '__main__':
+# # #
+# # # # TODO testing, to remove later
 # #
-# # # TODO testing, to remove later
-#
-#     import numpy as np
-#
-#     np.set_printoptions(precision=2)
-#     import pandas as pd
-    from gtime.preprocessing import TimeSeriesPreparation
-    from gtime.time_series_models import ARIMA, AR
-#     from sklearn.compose import make_column_selector
-#     from gtime.feature_extraction import Shift
-#     from sklearn.metrics import mean_squared_error
-#     from scipy.stats import normaltest
-#     import matplotlib.pyplot as plt
-#
-    df_sp = pd.read_csv('https://storage.googleapis.com/l2f-open-models/giotto-time/examples/data/^GSPC.csv', parse_dates=['Date'])
-    df_close = df_sp.set_index('Date')['Close']
-    time_series_preparation = TimeSeriesPreparation()
-    df_real = time_series_preparation.transform(df_close)
-    model = ARIMA(horizon=100, order=(2, 1, 3), method='css')
-    model.fit(df_real)
-    pred = model.predict()
-    print('A')
+# #     import numpy as np
+# #
+# #     np.set_printoptions(precision=2)
+# #     import pandas as pd
+#     from gtime.preprocessing import TimeSeriesPreparation
+#     from gtime.time_series_models import ARIMA, AR
+# #     from sklearn.compose import make_column_selector
+# #     from gtime.feature_extraction import Shift
+# #     from sklearn.metrics import mean_squared_error
+# #     from scipy.stats import normaltest
+# #     import matplotlib.pyplot as plt
+# #
+#     df_sp = pd.read_csv('https://storage.googleapis.com/l2f-open-models/giotto-time/examples/data/^GSPC.csv', parse_dates=['Date'])
+#     df_close = df_sp.set_index('Date')['Close']
+#     time_series_preparation = TimeSeriesPreparation()
+#     df_real = time_series_preparation.transform(df_close)
+#     model = ARIMA(horizon=100, order=(2, 1, 3), method='css')
+#     model.fit(df_real)
+#     pred = model.predict()
+#     print('A')
