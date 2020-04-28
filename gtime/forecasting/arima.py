@@ -82,16 +82,17 @@ class ARIMAForecaster(SimpleForecaster):
 
         Returns
         -------
-        np.array, difference of ``self.order[1]`` order of X
+        X: np.array, difference of ``self.order[1]`` order of X
 
         """
         n = len(X)
         i_order = self.order[1]
-        self.diff_vals = np.zeros((n, i_order))
+        target_lenth = n - i_order - self.n_ar
+        self.diff_vals = np.zeros((target_lenth, i_order))
         for i in range(i_order):
-            self.diff_vals[:, i] = np.diff(X, n=i)[-n:]
+            self.diff_vals[:, i] = np.diff(X, n=i)[-target_lenth:]
         X = np.diff(X, n=i_order)
-        return X[i_order:]
+        return X
 
     def _integrate(self, X: np.array) -> np.array:
         """
@@ -107,7 +108,7 @@ class ARIMAForecaster(SimpleForecaster):
 
         """
         for i in range(self.order[1]):
-            X = np.concatenate([self.diff_vals[self.n_ar + self.order[1]:, [-i-1]], X], axis=1).cumsum(axis=1)
+            X = np.concatenate([self.diff_vals[:, [-i-1]], X], axis=1).cumsum(axis=1)
         return X
 
     def _set_params(self, model: MLEModel, x: np.array):
@@ -207,3 +208,16 @@ class ARIMAForecaster(SimpleForecaster):
         y_pred = self._integrate(np.array(res))
 
         return y_pred[:, self.order[1]:]
+
+if __name__ == '__main__':
+    import pandas as pd
+    import numpy as np
+    from gtime.model_selection import horizon_shift, FeatureSplitter
+    from gtime.forecasting import ARIMAForecaster
+    idx = pd.period_range(start='2011-01-01', end='2012-01-01')
+    np.random.seed(1)
+    df = pd.DataFrame(np.random.random((len(idx), 1)), index=idx, columns=['1'])
+    y = horizon_shift(df, horizon=5)
+    X_train, y_train, X_test, y_test = FeatureSplitter().transform(df, y)
+    m = ARIMAForecaster(order=(1, 2, 1), method='css')
+    m.fit(X_train, y_train).predict(X_test)
