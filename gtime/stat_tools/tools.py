@@ -22,6 +22,10 @@ def mat_square(q: np.array, x: np.array):
     return np.linalg.multi_dot([x, q, np.transpose(x)])
 
 
+def alt_llf(nu, F):
+    return -0.5 * (np.log(2 * np.pi * np.abs(F)) + nu * nu / F)
+
+
 def loglikelihood_ns(nu: np.array, F: np.array):
 
     """
@@ -189,3 +193,5 @@ def acf(x: np.array, max_lags: Optional[int] = None) -> np.array:
     x = normalize(x)
     acf = autocorrelation(x)
     return acf[:max_lags]
+
+

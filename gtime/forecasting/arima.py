@@ -39,22 +39,24 @@ class ARIMAForecaster(SimpleForecaster):
             X = np.concatenate([self.diff_vals[self.n_ar + self.order[1]:, [-i-1]], X], axis=1).cumsum(axis=1)
         return X
 
+    def _set_params(self, model, x):
+        self.errors_ = model.get_errors(x)
+        self.mu_ = model.mu
+        self.phi_ = model.phi
+        self.theta_ = model.theta
+        self.model = model
+
     def fit(self, X, y):
         self.last_train_values_ = X.iloc[-self.n_ar-self.order[1]:]
         np_x = X.to_numpy().flatten()
         np_x = self._deintegrate(np_x)
         model = MLEModel((self.n_ar, self.n_ma), self.method)
         model.fit(np_x)
-        self.errors_ = model.get_errors(np_x)
-        self.mu_ = model.mu
-        self.phi_ = model.phi
-        self.theta_ = model.theta
-        self.model = model
+        self._set_params(model, np_x)
         super().fit(X, y)
         return self
 
-    def _predict(self, X):
-
+    def _extend_x_test(self, X):
         n = len(X)
         train_test_diff = X.index.min().start_time - self.last_train_values_.index.max().end_time
         if train_test_diff.value == 1:
@@ -65,7 +67,11 @@ class ARIMAForecaster(SimpleForecaster):
             last_values = pd.DataFrame(X.iloc[0], index=last_index)
             X = pd.concat([last_values, X])
             errors = np.zeros(n+self.n_ma)
+        return X, errors
 
+    def _predict(self, X):
+        n = len(X)
+        X, errors = self._extend_x_test(X)
         np_x = X.values.flatten()
         np_x = self._deintegrate(np_x)
 
@@ -82,28 +88,27 @@ class ARIMAForecaster(SimpleForecaster):
         return y_pred[:, self.order[1]:]
 
 
-
-# if __name__ == '__main__':
-# # #
-# # # # TODO testing, to remove later
+if __name__ == '__main__':
 # #
-# #     import numpy as np
-# #
-# #     np.set_printoptions(precision=2)
-# #     import pandas as pd
-#     from gtime.preprocessing import TimeSeriesPreparation
-#     from gtime.time_series_models import ARIMA, AR
-# #     from sklearn.compose import make_column_selector
-# #     from gtime.feature_extraction import Shift
-# #     from sklearn.metrics import mean_squared_error
-# #     from scipy.stats import normaltest
-# #     import matplotlib.pyplot as plt
-# #
-#     df_sp = pd.read_csv('https://storage.googleapis.com/l2f-open-models/giotto-time/examples/data/^GSPC.csv', parse_dates=['Date'])
-#     df_close = df_sp.set_index('Date')['Close']
-#     time_series_preparation = TimeSeriesPreparation()
-#     df_real = time_series_preparation.transform(df_close)
-#     model = ARIMA(horizon=100, order=(2, 1, 3), method='css')
-#     model.fit(df_real)
-#     pred = model.predict()
-#     print('A')
+# # # TODO testing, to remove later
+#
+#     import numpy as np
+#
+#     np.set_printoptions(precision=2)
+#     import pandas as pd
+    from gtime.preprocessing import TimeSeriesPreparation
+    from gtime.time_series_models import ARIMA, AR
+#     from sklearn.compose import make_column_selector
+#     from gtime.feature_extraction import Shift
+#     from sklearn.metrics import mean_squared_error
+#     from scipy.stats import normaltest
+#     import matplotlib.pyplot as plt
+#
+    df_sp = pd.read_csv('https://storage.googleapis.com/l2f-open-models/giotto-time/examples/data/^GSPC.csv', parse_dates=['Date'])
+    df_close = df_sp.set_index('Date')['Close']
+    time_series_preparation = TimeSeriesPreparation()
+    df_real = time_series_preparation.transform(df_close)
+    model = ARIMA(horizon=100, order=(2, 1, 1), method='mle')
+    model.fit(df_real)
+    pred = model.predict()
+    print('A')
