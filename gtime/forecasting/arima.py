@@ -1,10 +1,28 @@
 import numpy as np
 import pandas as pd
+from typing import Tuple
 from gtime.forecasting.simple_models import SimpleForecaster
 from gtime.stat_tools.mle_estimate import MLEModel # TODO better import
 
 
-def _arma_forecast(n, x0, eps0, mu, phi, theta):
+def _arma_forecast(n: int, x0: np.array, eps0: np.array, mu: float, phi: np.array, theta: np.array) -> np.array:
+    """
+    Forecasts next ``n`` steps of ARIMA process.
+
+    Parameters
+    ----------
+    n: int, number of steps to forecast
+    x0: np.array, initial conditions, previous observations for the AR process
+    eps0: np.array, initial conditions, previous residuals of the MA process
+    mu: float, process mean
+    phi: np.array, AR coefficients
+    theta: np.array, MA coefficients
+
+    Returns
+    -------
+    np.array, ``n``-step forecast
+
+    """
     len_ar = len(phi)
     len_ma = len(theta)
     x = np.r_[x0, np.zeros(n)]
@@ -16,8 +34,37 @@ def _arma_forecast(n, x0, eps0, mu, phi, theta):
 
 
 class ARIMAForecaster(SimpleForecaster):
+    """
 
-    def __init__(self, order, method='css-mle'):
+
+    Parameters
+    ----------
+    order: Tuple[int, int, int], model order of AR, I and MA
+    method: str, estimation method
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> import numpy as np
+    >>> from gtime.model_selection import horizon_shift, FeatureSplitter
+    >>> from gtime.forecasting import ARIMAForecaster
+    >>> idx = pd.period_range(start='2011-01-01', end='2012-01-01')
+    >>> np.random.seed(1)
+    >>> df = pd.DataFrame(np.random.random((len(idx), 1)), index=idx, columns=['1'])
+    >>> y = horizon_shift(df, horizon=5)
+    >>> X_train, y_train, X_test, y_test = FeatureSplitter().transform(df, y)
+    >>> m = ARIMAForecaster(order=(1, 0, 1), method='css')
+    >>> m.fit(X_train, y_train).predict(X_test)
+                         y_1       y_2       y_3       y_4       y_5
+        2011-12-28  0.508831  0.508736  0.508830  0.508736  0.508829
+        2011-12-29  0.871837  0.148431  0.866452  0.153777  0.861146
+        2011-12-30  0.119179  0.895486  0.124959  0.889750  0.130652
+        2011-12-31  0.476250  0.541073  0.476733  0.540594  0.477208
+        2012-01-01  0.046294  0.967829  0.053154  0.961020  0.059913
+
+    """
+
+    def __init__(self, order: Tuple[int, int, int], method: str = 'css-mle'):
         self.order = order
         self.max_degree = max(order[0], order[2])
         self.n_ar = order[0]
@@ -25,7 +72,19 @@ class ARIMAForecaster(SimpleForecaster):
         self.method = method
         self.model = None
 
-    def _deintegrate(self, X):
+    def _deintegrate(self, X: np.array) -> np.array:
+        """
+        Desintegrates X returning its difference of ``self.order[1]`` order and recording initial values to ``self.diff_vals`` for invertability
+
+        Parameters
+        ----------
+        X: np.array, input data
+
+        Returns
+        -------
+        np.array, difference of ``self.order[1]`` order of X
+
+        """
         n = len(X)
         i_order = self.order[1]
         self.diff_vals = np.zeros((n, i_order))
@@ -34,19 +93,55 @@ class ARIMAForecaster(SimpleForecaster):
         X = np.diff(X, n=i_order)
         return X[i_order:]
 
-    def _integrate(self, X):
+    def _integrate(self, X: np.array) -> np.array:
+        """
+        Reverse transformation of ``self._desintegrate(X)``, restores initial order based on ``self.diff_vals``
+
+        Parameters
+        ----------
+        X: np.array, input data
+
+        Returns
+        -------
+        np.array, integrated time series
+
+        """
         for i in range(self.order[1]):
             X = np.concatenate([self.diff_vals[self.n_ar + self.order[1]:, [-i-1]], X], axis=1).cumsum(axis=1)
         return X
 
-    def _set_params(self, model, x):
+    def _set_params(self, model: MLEModel, x: np.array):
+        """
+        Extracts fitted model parameters for easier access
+
+        Parameters
+        ----------
+        model: MLEModel, fitted model
+        x: np.array, training series used to calculate residuals
+
+        """
         self.errors_ = model.get_errors(x)
         self.mu_ = model.mu
         self.phi_ = model.phi
         self.theta_ = model.theta
         self.model = model
 
-    def fit(self, X, y):
+    def fit(self, X: pd.DataFrame, y: pd.DataFrame):
+        """
+        Fit the estimator.
+
+        Parameters
+        ----------
+        X : pd.DataFrame, shape (n_samples, n_features), train sample.
+
+        y : pd.DataFrame, Used to store the predict feature names and prediction horizon.
+
+        Returns
+        -------
+        self : ARIMAForecaster
+            Returns self.
+
+        """
         self.last_train_values_ = X.iloc[-self.n_ar-self.order[1]:]
         np_x = X.to_numpy().flatten()
         np_x = self._deintegrate(np_x)
@@ -56,7 +151,21 @@ class ARIMAForecaster(SimpleForecaster):
         super().fit(X, y)
         return self
 
-    def _extend_x_test(self, X):
+    def _extend_x_test(self, X: pd.DataFrame) -> (pd.DataFrame, np.array):
+        """
+        If test time series directly follows the train one, adds last values of train observations and errors for ARIMA forecast.
+        Otherwise assumes previous observations equal to the first one in test time series.
+        Future errors are assumed to be 0.0.
+
+        Parameters
+        ----------
+        X: pd.DataFrame, test time series
+
+        Returns
+        -------
+        X: pd.DataFrame, extended time series required for predictions
+        errors: np.array, error forecast required for predictions
+        """
         n = len(X)
         train_test_diff = X.index.min().start_time - self.last_train_values_.index.max().end_time
         if train_test_diff.value == 1:
@@ -69,7 +178,19 @@ class ARIMAForecaster(SimpleForecaster):
             errors = np.zeros(n+self.n_ma)
         return X, errors
 
-    def _predict(self, X):
+    def _predict(self, X: pd.DataFrame) -> np.array:
+        """
+        Create a numpy array of predictions.
+
+        Parameters
+        ----------
+        X: pd.DataFrame, shape (n_samples, 1), required
+            The time series on which to predict.
+
+        Returns
+        -------
+        np.array
+        """
         n = len(X)
         X, errors = self._extend_x_test(X)
         np_x = X.values.flatten()
@@ -86,29 +207,3 @@ class ARIMAForecaster(SimpleForecaster):
         y_pred = self._integrate(np.array(res))
 
         return y_pred[:, self.order[1]:]
-
-
-if __name__ == '__main__':
-# #
-# # # TODO testing, to remove later
-#
-#     import numpy as np
-#
-#     np.set_printoptions(precision=2)
-#     import pandas as pd
-    from gtime.preprocessing import TimeSeriesPreparation
-    from gtime.time_series_models import ARIMA, AR
-#     from sklearn.compose import make_column_selector
-#     from gtime.feature_extraction import Shift
-#     from sklearn.metrics import mean_squared_error
-#     from scipy.stats import normaltest
-#     import matplotlib.pyplot as plt
-#
-    df_sp = pd.read_csv('https://storage.googleapis.com/l2f-open-models/giotto-time/examples/data/^GSPC.csv', parse_dates=['Date'])
-    df_close = df_sp.set_index('Date')['Close']
-    time_series_preparation = TimeSeriesPreparation()
-    df_real = time_series_preparation.transform(df_close)
-    model = ARIMA(horizon=100, order=(2, 1, 1), method='mle')
-    model.fit(df_real)
-    pred = model.predict()
-    print('A')

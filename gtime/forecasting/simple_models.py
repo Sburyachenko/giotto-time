@@ -15,7 +15,7 @@ class SimpleForecaster(BaseEstimator, RegressorMixin, metaclass=ABCMeta):
 
         Parameters
         ----------
-        X : pd.DataFrame, shape (n_samples, n_features), train sample, required for compatibility, not used for a naive model.
+        X : pd.DataFrame, shape (n_samples, n_features), train sample.
 
         y : pd.DataFrame, Used to store the predict feature names and prediction horizon.
 
