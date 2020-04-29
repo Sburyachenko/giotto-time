@@ -32,6 +32,20 @@ def _arma_forecast(n: int, x0: np.array, eps0: np.array, mu: float, phi: np.arra
         x[i + len_ar] = mu + np.dot(phi, x[i:i + len_ar]) + np.dot(theta, eps[i:i + len_ma])
     return x[len_ar:]
 
+def _arma_insample_errors(x: np.array, eps0: np.array, mu: float, phi: np.array, theta: np.array) -> np.array:
+
+    len_ar = len(phi)
+    len_ma = len(theta)
+    n = len(x) - len_ar
+    x_f = np.zeros(n)
+    eps = np.r_[eps0, np.zeros(n)]
+    mu = mu * (1 - phi.sum())  # TODO Why???
+    for i in range(n):
+        x_f[i] = mu + np.dot(phi, x[i:i + len_ar]) + np.dot(theta, eps[i:i + len_ma])
+        eps[i + len_ma] = x[i + len_ar] - x_f[i]
+    return eps
+
+
 
 class ARIMAForecaster(SimpleForecaster):
     """
@@ -90,7 +104,7 @@ class ARIMAForecaster(SimpleForecaster):
         target_lenth = n - i_order - self.n_ar
         self.diff_vals = np.zeros((target_lenth, i_order))
         for i in range(i_order):
-            self.diff_vals[:, i] = np.diff(X, n=i)[:target_lenth]
+            self.diff_vals[:, i] = np.diff(X, n=i)[self.n_ar + 1:self.n_ar + target_lenth + 1]
         X = np.diff(X, n=i_order)
         return X
 
@@ -143,7 +157,8 @@ class ARIMAForecaster(SimpleForecaster):
             Returns self.
 
         """
-        self.last_train_values_ = X.iloc[-self.n_ar-self.order[1]:]
+        len_stored_values = self.n_ar + self.order[1]
+        self.last_train_values_ = X.iloc[-len_stored_values:] if len_stored_values > 0 else X.iloc[:0]
         np_x = X.to_numpy().flatten()
         np_x = self._deintegrate(np_x)
         model = MLEModel((self.n_ar, self.n_ma), self.method)
@@ -171,12 +186,12 @@ class ARIMAForecaster(SimpleForecaster):
         train_test_diff = X.index.min().start_time - self.last_train_values_.index.max().end_time
         if train_test_diff.value == 1:
             X = pd.concat([self.last_train_values_, X])
-            errors = np.r_[self.errors_[-self.n_ma:], np.zeros(n)]
+            errors = self.errors_[-self.n_ma:]
         else:
             last_index = pd.period_range(periods=self.n_ar + self.order[1] + 1, end=X.index[0])[:-1]
             last_values = pd.DataFrame([X.iloc[0].values[0]] * len(last_index), index=last_index, columns=X.columns)
             X = pd.concat([last_values, X])
-            errors = np.zeros(n+self.n_ma)
+            errors = np.zeros(self.n_ma)
         return X, errors
 
     def _predict(self, X: pd.DataFrame) -> np.array:
@@ -196,6 +211,8 @@ class ARIMAForecaster(SimpleForecaster):
         X, errors = self._extend_x_test(X)
         np_x = X.values.flatten()
         np_x = self._deintegrate(np_x)
+        errors = _arma_insample_errors(np_x, errors, self.mu_, self.phi_, self.theta_)
+
 
         res = [_arma_forecast(n=self.horizon_,
                               x0=np_x[i:i+self.n_ar],
@@ -204,7 +221,7 @@ class ARIMAForecaster(SimpleForecaster):
                               phi=self.model.phi,
                               theta=self.model.theta
                               )
-               for i in range(n)]
+               for i in range(1, n+1)]
         # print(res, self.diff_vals)
         y_pred = self._integrate(np.array(res))
 
@@ -226,11 +243,11 @@ if __name__ == '__main__':
     df_close = df_sp.set_index('Date')['Close']
     time_series_preparation = TimeSeriesPreparation()
     df_real = time_series_preparation.transform(df_close)
-    y = horizon_shift(df_real, horizon=100)
+    y = horizon_shift(df_real, horizon=10)
 
     X_train, y_train, X_test, y_test = FeatureSplitter().transform(df_real, y)
-    m2 = ARIMA_sm(X_train, (2, 2, 2))
-    f = m2.fit(method='mle')
-    y2, _, _ = f.forecast(100)
-    m = ARIMAForecaster(order=(2, 2, 2), method='css')
-    m.fit(X_train, y_train).predict(X_test.iloc[[1]])
+    # m2 = ARIMA_sm(X_train, (1, 2, 1))
+    # f = m2.fit(method='mle')
+    # y2, _, _ = f.forecast(100)
+    m = ARIMAForecaster(order=(3, 2, 1), method='mle')
+    m.fit(X_train, y_train).predict(X_test.iloc[[0]])

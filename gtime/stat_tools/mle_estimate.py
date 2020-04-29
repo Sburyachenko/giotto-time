@@ -111,25 +111,33 @@ def _likelihood(X, mu, sigma, phi, theta, errors=False):
         return -float(loglikelihood)
 
 
-def _run_mle(params, X, len_p, errors=False):
+def _run_mle(params, X, len_p, errors=False, transform=True):
     mu = params[0]
     sigma = params[1]
     len_q = len(params) - len_p - 2
     max_lag = max(len_p, len_q + 1)
-    phi = params[2:len_p + 2]
-    theta = params[len_p + 2:]
+    if transform:
+        phi = _ar_transparams(params[2:len_p + 2])
+        theta = _ma_transparams(params[len_p + 2:])
+    else:
+        phi = params[2:len_p + 2]
+        theta = params[len_p + 2:]
+
     phi = np.pad(phi, (0, max_lag - len_p), mode='constant', constant_values=(0, 0))
     theta = np.pad(theta, (0, max_lag - len_q), mode='constant', constant_values=(0, 0))
     return alt_likelihood(X, mu, sigma, phi, theta, errors)
 
 
-def _run_css(params, X, len_p, errors=False):
+def _run_css(params, X, len_p, errors=False, transform=True):
 
     mu = params[0]
     nobs = len(X) - len_p
-
-    phi = np.r_[1, -params[2:len_p + 2]]
-    theta = np.r_[1, params[len_p + 2:]]
+    if transform:
+        phi = np.r_[1, -_ar_transparams(params[2:len_p + 2])]
+        theta = np.r_[1, _ma_transparams(params[len_p + 2:])]
+    else:
+        phi = np.r_[1, -params[2:len_p + 2]]
+        theta = np.r_[1, params[len_p + 2:]]
 
     y = X - mu
     zi = np.zeros((max(len(phi), len(theta)) - 1))
@@ -143,6 +151,32 @@ def _run_css(params, X, len_p, errors=False):
         sigma2 = ssr / nobs
         loglikelihood = -nobs / 2. * (np.log(2 * np.pi * sigma2)) - ssr / (2. * sigma2)
         return -loglikelihood
+
+
+def _ar_transparams(params):  # TODO do not copy directly!!!!!
+
+    newparams = np.tanh(params/2)
+    tmp = np.tanh(params/2)
+    for j in range(1,len(params)):
+        a = newparams[j]
+        for kiter in range(j):
+            tmp[kiter] -= a * newparams[j-kiter-1]
+        newparams[:j] = tmp[:j]
+    return newparams
+
+
+def _ma_transparams(params):
+
+    newparams = ((1-np.exp(-params))/(1+np.exp(-params))).copy()
+    tmp = ((1-np.exp(-params))/(1+np.exp(-params))).copy()
+
+    # levinson-durbin to get macf
+    for j in range(1,len(params)):
+        b = newparams[j]
+        for kiter in range(j):
+            tmp[kiter] += b * newparams[j-kiter-1]
+        newparams[:j] = tmp[:j]
+    return newparams
 
 
 class MLEModel:
@@ -163,39 +197,51 @@ class MLEModel:
         self.parameters[0] = mu
         self.parameters[1] = sigma
 
-        constraints = NonlinearConstraint(lambda x: arma_polynomial_roots(x, self.order[0]),
-                                     lb=np.ones(len(self.parameters)),
-                                     ub=np.inf * np.ones(len(self.parameters))
-                                     )
-        minimizer_kwargs = {"method": "SLSQP", "constraints": constraints}
+        # Constrained optimization
+        # constraints = NonlinearConstraint(lambda x: arma_polynomial_roots(x, self.order[0]),
+        #                              lb=np.ones(len(self.parameters)),
+        #                              ub=np.inf * np.ones(len(self.parameters))
+        #                              )
+        # minimizer_kwargs = {"method": "SLSQP", "constraints": constraints}
+        # if self.method == 'mle':
+        #     # Xmin = minimize(lambda phi: _run_mle(phi, X, len_p=self.order[0]),
+        #     #                 x0=self.parameters, method='SLSQP', constraints=constraints)
+        #     Xmin = basinhopping(lambda phi: _run_mle(phi, X, len_p=self.order[0]),
+        #                     x0=self.parameters, minimizer_kwargs=minimizer_kwargs)
+        # elif self.method == 'css':
+        #     Xmin = minimize(lambda phi: _run_css(phi, X, len_p=self.order[0]),
+        #                     x0=self.parameters, method='SLSQP', constraints=constraints)
+        # else:
+        #     x0_css = minimize(lambda phi: _run_css(phi, X, len_p=self.order[0]),
+        #                       x0=self.parameters, method='SLSQP', constraints=constraints)['x']
+        #     Xmin = minimize(lambda phi: _run_mle(phi, X, len_p=self.order[0]),
+        #                     x0=x0_css, method='SLSQP', constraints=constraints)
+
+        # Transformed LBFGS
         if self.method == 'mle':
-            # Xmin = minimize(lambda phi: _run_mle(phi, X, len_p=self.order[0]),
-            #                 x0=self.parameters, method='SLSQP', constraints=constraints)
-            Xmin = basinhopping(lambda phi: _run_mle(phi, X, len_p=self.order[0]),
-                            x0=self.parameters, minimizer_kwargs=minimizer_kwargs)
+            Xmin = minimize(lambda phi: _run_mle(phi, X, len_p=self.order[0]), x0=self.parameters, method='L-BFGS-B')
         elif self.method == 'css':
-            Xmin = minimize(lambda phi: _run_css(phi, X, len_p=self.order[0]),
-                            x0=self.parameters, method='SLSQP', constraints=constraints)
+            Xmin = minimize(lambda phi: _run_css(phi, X, len_p=self.order[0]), x0=self.parameters, method='L-BFGS-B')
         else:
-            x0_css = minimize(lambda phi: _run_css(phi, X, len_p=self.order[0]),
-                              x0=self.parameters, method='SLSQP', constraints=constraints)['x']
-            Xmin = minimize(lambda phi: _run_mle(phi, X, len_p=self.order[0]),
-                            x0=x0_css, method='SLSQP', constraints=constraints)
+            x0_css = minimize(lambda phi: _run_css(phi, X, len_p=self.order[0]), x0=self.parameters, method='L-BFGS-B')['x']
+            Xmin = minimize(lambda phi: _run_mle(phi, X, len_p=self.order[0]), x0=x0_css, method='L-BFGS-B')
 
         fitted_params = Xmin['x']
         self.ml = Xmin['fun']
-        self.parameters = fitted_params
         self.mu = fitted_params[0]
         self.sigma = fitted_params[1]
-        self.phi = fitted_params[2:self.order[0] + 2]
-        self.theta = fitted_params[-self.order[1]:] if self.order[1] > 0 else np.array([])
+        self.phi = _ar_transparams(fitted_params[2:self.order[0] + 2])
+        self.theta = _ma_transparams(fitted_params[-self.order[1]:] if self.order[1] > 0 else np.array([]))
+        self.parameters = np.r_[self.mu, self.sigma, self.phi, self.theta]
+        # self.phi = fitted_params[2:self.order[0] + 2]
+        # self.theta = fitted_params[-self.order[1]:] if self.order[1] > 0 else np.array([])
         return self
 
     def get_errors(self, X):
         if self.method in ['mle', 'css-mle']:
-            errors = _run_mle(self.parameters, X, self.order[0], errors=True)
+            errors = _run_mle(self.parameters, X, self.order[0], errors=True, transform=False)
         else:
-            errors = _run_css(self.parameters, X, self.order[0], errors=True)
+            errors = _run_css(self.parameters, X, self.order[0], errors=True, transform=False)
         return errors
 
 
