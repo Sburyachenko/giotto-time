@@ -90,7 +90,7 @@ class ARIMAForecaster(SimpleForecaster):
         target_lenth = n - i_order - self.n_ar
         self.diff_vals = np.zeros((target_lenth, i_order))
         for i in range(i_order):
-            self.diff_vals[:, i] = np.diff(X, n=i)[-target_lenth:]
+            self.diff_vals[:, i] = np.diff(X, n=i)[:target_lenth]
         X = np.diff(X, n=i_order)
         return X
 
@@ -174,7 +174,7 @@ class ARIMAForecaster(SimpleForecaster):
             errors = np.r_[self.errors_[-self.n_ma:], np.zeros(n)]
         else:
             last_index = pd.period_range(periods=self.n_ar + self.order[1] + 1, end=X.index[0])[:-1]
-            last_values = pd.DataFrame(X.iloc[0], index=last_index)
+            last_values = pd.DataFrame([X.iloc[0].values[0]] * len(last_index), index=last_index, columns=X.columns)
             X = pd.concat([last_values, X])
             errors = np.zeros(n+self.n_ma)
         return X, errors
@@ -205,6 +205,7 @@ class ARIMAForecaster(SimpleForecaster):
                               theta=self.model.theta
                               )
                for i in range(n)]
+        # print(res, self.diff_vals)
         y_pred = self._integrate(np.array(res))
 
         return y_pred[:, self.order[1]:]
@@ -214,10 +215,22 @@ if __name__ == '__main__':
     import numpy as np
     from gtime.model_selection import horizon_shift, FeatureSplitter
     from gtime.forecasting import ARIMAForecaster
-    idx = pd.period_range(start='2011-01-01', end='2012-01-01')
-    np.random.seed(1)
-    df = pd.DataFrame(np.random.random((len(idx), 1)), index=idx, columns=['1'])
-    y = horizon_shift(df, horizon=5)
-    X_train, y_train, X_test, y_test = FeatureSplitter().transform(df, y)
-    m = ARIMAForecaster(order=(1, 2, 1), method='css')
-    m.fit(X_train, y_train).predict(X_test)
+    from gtime.preprocessing import TimeSeriesPreparation
+    from statsmodels.tsa.arima_model import ARIMA as ARIMA_sm
+    # idx = pd.period_range(start='2011-01-01', end='2012-01-01')
+    # np.random.seed(1)
+    # df = pd.DataFrame(np.random.random((len(idx), 1)), index=idx, columns=['1'])
+
+    df_sp = pd.read_csv('https://storage.googleapis.com/l2f-open-models/giotto-time/examples/data/^GSPC.csv',
+                        parse_dates=['Date'])
+    df_close = df_sp.set_index('Date')['Close']
+    time_series_preparation = TimeSeriesPreparation()
+    df_real = time_series_preparation.transform(df_close)
+    y = horizon_shift(df_real, horizon=100)
+
+    X_train, y_train, X_test, y_test = FeatureSplitter().transform(df_real, y)
+    m2 = ARIMA_sm(X_train, (2, 2, 2))
+    f = m2.fit(method='mle')
+    y2, _, _ = f.forecast(100)
+    m = ARIMAForecaster(order=(2, 2, 2), method='css')
+    m.fit(X_train, y_train).predict(X_test.iloc[[1]])
