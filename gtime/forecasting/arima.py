@@ -25,11 +25,13 @@ def _arma_forecast(n: int, x0: np.array, eps0: np.array, mu: float, phi: np.arra
     """
     len_ar = len(phi)
     len_ma = len(theta)
+    phi = phi[::-1]
+    theta = theta[::-1]
     x = np.r_[x0, np.zeros(n)]
     eps = np.r_[eps0, np.zeros(n)]
-    mu = mu * (1 - phi.sum())  # TODO Why???
+    trend = mu * (1 - phi.sum())
     for i in range(n):
-        x[i + len_ar] = mu + np.dot(phi, x[i:i + len_ar]) + np.dot(theta, eps[i:i + len_ma])
+        x[i + len_ar] = trend + np.dot(phi, x[i:i + len_ar]) + np.dot(theta, eps[i:i + len_ma])
     return x[len_ar:]
 
 
@@ -54,6 +56,8 @@ def _arma_insample_errors(x: np.array, eps0: np.array, mu: float, phi: np.array,
 
     len_ar = len(phi)
     len_ma = len(theta)
+    phi = phi[::-1]
+    theta = theta[::-1]
     n = len(x) - len_ar
     x_f = np.zeros(n)
     eps = np.r_[eps0, np.zeros(n)]
@@ -243,53 +247,3 @@ class ARIMAForecaster(SimpleForecaster):
         y_pred = self._integrate(np.array(res))
 
         return y_pred[:, self.order[1]:]
-
-if __name__ == '__main__':
-    import pandas as pd
-    import numpy as np
-    from gtime.model_selection import horizon_shift, FeatureSplitter
-    from gtime.forecasting import ARIMAForecaster
-    from gtime.preprocessing import TimeSeriesPreparation
-    from gtime.time_series_models import ARIMA, AR
-    from statsmodels.tsa.arima_model import ARIMA as ARIMA_sm
-    # idx = pd.period_range(start='2011-01-01', end='2012-01-01')
-    # np.random.seed(1)
-    # df = pd.DataFrame(np.random.random((len(idx), 1)), index=idx, columns=['1'])
-
-    df_sp = pd.read_csv('https://storage.googleapis.com/l2f-open-models/giotto-time/examples/data/^GSPC.csv',
-                        parse_dates=['Date'])
-    df_close = df_sp.set_index('Date')['Close']
-    time_series_preparation = TimeSeriesPreparation()
-    df_real = time_series_preparation.transform(df_close)
-    # y = horizon_shift(df_real, horizon=100)
-    #
-    # X_train, y_train, X_test, y_test = FeatureSplitter().transform(df_real, y)
-    # # m2 = ARIMA_sm(X_train, (1, 2, 1))
-    # # f = m2.fit(method='mle')
-    # # y2, _, _ = f.forecast(100)
-    # m = ARIMAForecaster(order=(3, 2, 3), method='mle')
-    # pred = m.fit(X_train, y_train).predict(X_test.iloc[[0]])
-    # print(pred)
-
-    def run_giotto_arima(df, test_size, order, method='css-mle', plot=True):
-        model = ARIMA(horizon=test_size, order=order, method=method)
-        df_train = df
-        df_test = df.iloc[-test_size:]
-        model.fit(df_train)
-        pred_g = model.predict(df_test.iloc[[0]])
-        print(pred_g.values.flatten())
-        y_pred = pd.DataFrame(pred_g.values[0], index=df_test.index, columns=['time_series'])
-        phi = model.model.phi_
-        theta = model.model.theta_
-        mu = model.model.mu_
-        train_errors = model.model.errors_
-        print(f'Giotto results {method}:')
-        print(f'Fitted parameters: mu={mu:.2f}, p={phi}, q={theta}')
-        print(f'AR roots abs:{np.abs(np.roots(np.r_[-phi[::-1], 1.0]))}')
-        print(f'MA roots abs:{np.abs(np.roots(np.r_[theta[::-1], 1.0]))}')
-        print(f'Train error mean: {train_errors.mean():.2f}, std: {train_errors.std():.2f}')
-        print(f'LL: {model.model.model.ml:.2f}')
-        return mu, phi, theta
-
-
-    mu, phi, theta = run_giotto_arima(df_real, 100, (3, 2, 3), 'mle')
