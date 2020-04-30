@@ -61,9 +61,9 @@ def _arma_insample_errors(x: np.array, eps0: np.array, mu: float, phi: np.array,
     n = len(x) - len_ar
     x_f = np.zeros(n)
     eps = np.r_[eps0, np.zeros(n)]
-    mu = mu * (1 - phi.sum())  # TODO Why???
+    trend = mu * (1 - phi.sum())
     for i in range(n):
-        x_f[i] = mu + np.dot(phi, x[i:i + len_ar]) + np.dot(theta, eps[i:i + len_ma])
+        x_f[i] = trend + np.dot(phi, x[i:i + len_ar]) + np.dot(theta, eps[i:i + len_ma])
         eps[i + len_ma] = x[i + len_ar] - x_f[i]
     return eps
 
