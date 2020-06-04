@@ -1,168 +1,45 @@
-.. giotto documentation master file, created by
-   sphinx-quickstart on Mon Jun  3 11:56:46 2019.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+#########################
+Giotto-time documentation
+#########################
 
-Welcome to giotto-time's API reference!
-========================================
+.. image:: https://www.giotto.ai/static/vector/logo-time.svg
+   :width: 500
 
-:mod:`gtime.causality`: Causality Tests
-============================================
+|Version| |Azure-build| |PyPI download month| |Codecov| |PyPI pyversions| |Slack-join| |Black|
 
-.. automodule:: gtime.causality
-   :no-members:
-   :no-inherited-members:
+.. |Version| image:: https://badge.fury.io/py/giotto-time.svg
+   :target: https://pypi.python.org/pypi/giotto-time/
 
-.. currentmodule:: gtime
+.. |Azure-build| image:: https://dev.azure.com/maintainers/Giotto/_apis/build/status/giotto-ai.giotto-time?branchName=master
+   :target: https://dev.azure.com/maintainers/Giotto/_build/latest?definitionId=4&branchName=master
 
-.. autosummary::
-   :toctree: generated/
-   :template: class.rst
+.. |PyPI download month| image:: https://img.shields.io/pypi/dm/giotto-time.svg
+   :target: https://pypi.python.org/pypi/giotto-time/
 
-   causality.ShiftedLinearCoefficient
-   causality.ShiftedPearsonCorrelation
+.. |Codecov| image:: https://codecov.io/gh/giotto-ai/giotto-time/branch/master/graph/badge.svg
+   :target: https://codecov.io/gh/giotto-ai/giotto-time
 
+.. |PyPI pyversions| image:: https://img.shields.io/pypi/pyversions/giotto-time.svg
+   :target: https://pypi.python.org/pypi/giotto-time/
 
-:mod:`gtime.compose`: Compose
-===========================================
+.. |Slack-join| image:: https://img.shields.io/badge/Slack-Join-blue
+   :target: https://slack.giotto.ai/
 
-.. automodule:: gtime.compose
-   :no-members:
-   :no-inherited-members:
-
-.. currentmodule:: gtime
-
-.. autosummary::
-   :toctree: generated/
-   :template: class.rst
-
-   compose.FeatureCreation
+.. |Black| image:: https://img.shields.io/badge/code%20style-black-000000.svg
+   :target: https://github.com/ambv/black
 
 
-:mod:`gtime.feature_extraction`: Feature Extraction
-========================================================
 
-.. automodule:: gtime.feature_extraction
-   :no-members:
-   :no-inherited-members:
+*********
+Contents
+*********
 
-.. currentmodule:: gtime
+.. toctree::
+   :maxdepth: 1
 
-.. autosummary::
-   :toctree: generated/
-   :template: class.rst
+   about/about
+   installation
+   user_guide/user_guide
+   API reference <api>
+   theory/math
 
-    feature_extraction.Shift
-    feature_extraction.MovingAverage
-    feature_extraction.MovingCustomFunction
-    feature_extraction.Polynomial
-    feature_extraction.Exogenous
-    feature_extraction.CustomFeature
-
-
-:mod:`gtime.feature_generation`: Feature Generation
-===================================================
-
-.. automodule:: gtime.feature_generation
-   :no-members:
-   :no-inherited-members:
-
-.. currentmodule:: gtime
-
-.. autosummary::
-   :toctree: generated/
-   :template: class.rst
-
-
-   feature_generation.PeriodicSeasonal
-   feature_generation.Constant
-   feature_generation.Calendar
-
-
-:mod:`gtime.forecasting`: Forecasting
-=====================================
-
-.. automodule:: gtime.forecasting
-   :no-members:
-   :no-inherited-members:
-
-.. currentmodule:: gtime
-
-.. autosummary::
-   :toctree: generated/
-   :template: class.rst
-
-   forecasting.GAR
-   forecasting.GARFF
-   forecasting.TrendForecaster
-
-
-:mod:`gtime.regressors`: Regressors
-====================================
-
-.. automodule:: gtime.regressors
-   :no-members:
-   :no-inherited-members:
-
-.. currentmodule:: gtime
-
-.. autosummary::
-   :toctree: generated/
-   :template: class.rst
-
-   regressors.LinearRegressor
-
-
-:mod:`gtime.metrics`: Metrics
-=============================
-
-.. automodule:: gtime.metrics
-   :no-members:
-   :no-inherited-members:
-
-.. currentmodule:: gtime
-
-.. autosummary::
-   :toctree: generated/
-   :template: function.rst
-
-   metrics.smape
-   metrics.max_error
-
-
-:mod:`gtime.model_selection`: Model Selection
-==================================================
-
-.. automodule:: gtime.model_selection
-   :no-members:
-   :no-inherited-members:
-
-.. currentmodule:: gtime
-
-.. autosummary::
-   :toctree: generated/
-   :template: class.rst
-
-   model_selection.FeatureSplitter
-
-.. autosummary::
-   :toctree: generated/
-   :template: function.rst
-
-   model_selection.horizon_shift
-
-
-:mod:`gtime.preprocessing`: Preprocessing
-==============================================
-
-.. automodule:: gtime.preprocessing
-   :no-members:
-   :no-inherited-members:
-
-.. currentmodule:: gtime
-
-.. autosummary::
-   :toctree: generated/
-   :template: class.rst
-
-   preprocessing.TimeSeriesPreparation

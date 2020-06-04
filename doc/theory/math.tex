@@ -1,0 +1,40 @@
+\documentclass{amsart}
+\usepackage{amsmath, amssymb, amsfonts}
+\usepackage{enumerate}
+\usepackage{tikz-cd}
+\usepackage{bm}
+\usepackage[bookmarks=true,
+bookmarksnumbered=true,
+pdfstartview=FitH, hyperfigures=false,
+plainpages=false, naturalnames=true,
+colorlinks=true, pagebackref=true,
+pdfpagelabels]{hyperref}
+\hypersetup{
+	linktocpage,
+	colorlinks,
+	citecolor=blue,
+	linkcolor=blue,
+	urlcolor=blue}
+
+\setcounter{tocdepth}{2}
+\makeatletter
+\def\l@subsection{\@tocline{2}{0pt}{3.5pc}{5pc}{}}
+\makeatother
+
+\begin{document}
+
+	\title{Theory Glossary}
+	\maketitle
+
+	\tableofcontents
+	\title{Theory Glossary}
+
+	\section{basic}
+	\paragraph{\\ Reference:} \cite{nla.cat-vn6450419}
+
+
+  \section{Bibliography}
+\bibliography{bib}{}
+\bibliographystyle{alpha}
+
+\end{document}

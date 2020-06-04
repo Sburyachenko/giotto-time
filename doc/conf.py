@@ -39,6 +39,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.imgconverter",
     # 'sphinx_gallery.gen_gallery',
+    'sphinx_rtd_theme',
     "sphinx_issues",
     # 'custom_references_resolver' # custom for sklearn, not sure what it does
 ]
@@ -104,9 +105,20 @@ pygments_style = "sphinx"
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = "nature"
+# html_theme = "nature"
+
+# The theme to use for HTML and HTML Help pages.  See the documentation for
+# a list of builtin themes.
+html_theme = "sphinx_rtd_theme"
+
+html_theme_options = {
+    'collapse_navigation': False,
+    'sticky_navigation': True,
+    'logo_only': True,
+}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = []  # ['_static']
+# html_static_path = []  # ['_static']
+html_static_path = ['source/_static/style.css']
