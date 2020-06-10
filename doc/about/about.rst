@@ -2,7 +2,7 @@
 About giotto-time
 #########################
 
-Giotto-time is a machine learning based time series forecasting toolbox in Python.
+``giotto-time`` is a machine learning based time series forecasting toolbox in Python.
 It is part of the `Giotto <https://github.com/giotto-ai>`_ collection of open-source projects and aims to provide
 feature extraction, analysis, causality testing and forecasting models based on
 `scikit-learn <https://scikit-learn.org/stable/>`_ API.

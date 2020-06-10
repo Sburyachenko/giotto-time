@@ -1,12 +1,15 @@
 # Minimal makefile for Sphinx documentation
-#
+#	@for f in theory/*.tex;
+ #	do
+ #		pandoc "$f" -f latex -t rst --toc -s --bibliography=theory/bib.bib -o "${f%.tex}.rst";
+ #	done;
 
 # You can set these variables from the command line, and also
 # from the environment for the first two.
 SPHINXOPTS    ?=
 SPHINXBUILD   ?= sphinx-build
 SOURCEDIR     = .
-BUILDDIR      = build
+BUILDDIR      = ../../../gtime-docs/build
 
 SHOW_VERSIONS = TRUE
 
@@ -28,7 +31,9 @@ check_installs:
 	done;
 
 convert-tex:
-	@pandoc theory/*.tex -f latex -t rst --toc -s --bibliography=theory/bib.bib
+	@for f in $(shell ls theory/*.tex); \
+	do pandoc $${f} -f latex -t rst --toc -s --bibliography=theory/bib.bib -o $${f%.tex}.rst; \
+	done
 
 convert-notebooks:
 ifeq ($(RUNNOTEBOOKS),TRUE)

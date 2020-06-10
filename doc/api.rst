@@ -18,6 +18,7 @@ _________________
 
    causality.ShiftedLinearCoefficient
    causality.ShiftedPearsonCorrelation
+   causality.GrangerCausality
 
 
 Compose
@@ -55,6 +56,9 @@ ____________________
     feature_extraction.Polynomial
     feature_extraction.Exogenous
     feature_extraction.CustomFeature
+    feature_extraction.Detrender
+    feature_extraction.SortedDensity
+    feature_extraction.CrestFactorDetrending
 
 
 Feature Generation
@@ -89,15 +93,22 @@ _________________
    :toctree: generated/
    :template: class.rst
 
-   forecasting.GAR
-   forecasting.GARFF
-   forecasting.TrendForecaster
+    forecasting.GAR
+    forecasting.GARFF
+    forecasting.MultiFeatureGAR
+    forecasting.TrendForecaster
+    forecasting.HedgeForecaster
+    forecasting.NaiveForecaster
+    forecasting.SeasonalNaiveForecaster
+    forecasting.DriftForecaster
+    forecasting.AverageForecaster
+    forecasting.MultiFeatureMultiOutputRegressor
 
 
-Regressors
+Hierarchical
 _________________
 
-.. automodule:: gtime.regressors
+.. automodule:: gtime.hierarchical
    :no-members:
    :no-inherited-members:
 
@@ -107,7 +118,11 @@ _________________
    :toctree: generated/
    :template: class.rst
 
-   regressors.LinearRegressor
+    hierarchical.HierarchicalBase
+    hierarchical.HierarchicalNaive
+    hierarchical.HierarchicalBottomUp
+    hierarchical.HierarchicalTopDown
+    hierarchical.HierarchicalMiddleOut
 
 
 Metrics
@@ -123,8 +138,17 @@ ________
    :toctree: generated/
    :template: function.rst
 
+   metrics.non_zero_smape
    metrics.smape
    metrics.max_error
+   metrics.mse
+   metrics.log_mse
+   metrics.r_square
+   metrics.mae
+   metrics.mape
+   metrics.rmse
+   metrics.rmsle
+   metrics.gmae
 
 
 Model Selection
@@ -147,6 +171,27 @@ _________________
    :template: function.rst
 
    model_selection.horizon_shift
+   model_selection.time_series_split
+   model_selection.blocking_time_series_split
+
+
+Plotting
+_________________
+
+.. automodule:: gtime.plotting
+   :no-members:
+   :no-inherited-members:
+
+.. currentmodule:: gtime
+
+.. autosummary::
+   :toctree: generated/
+   :template: function.rst
+
+   plotting.seasonal_plot
+   plotting.seasonal_subplots
+   plotting.acf_plot
+   plotting.lag_plot
 
 
 Preprocessing
@@ -163,3 +208,43 @@ _________________
    :template: class.rst
 
    preprocessing.TimeSeriesPreparation
+
+
+Regressors
+_________________
+
+.. automodule:: gtime.regressors
+   :no-members:
+   :no-inherited-members:
+
+.. currentmodule:: gtime
+
+.. autosummary::
+   :toctree: generated/
+   :template: class.rst
+
+   regressors.LinearRegressor
+   regressors.MultiFeatureMultiOutputRegressor
+   regressors.ExplainableRegressor
+
+
+Time series models
+___________________
+
+.. automodule:: gtime.time_series_models
+   :no-members:
+   :no-inherited-members:
+
+.. currentmodule:: gtime
+
+.. autosummary::
+   :toctree: generated/
+   :template: class.rst
+
+   time_series_models.TimeSeriesForecastingModel
+   time_series_models.AR
+   time_series_models.Naive
+   time_series_models.SeasonalNaive
+   time_series_models.Average
+   time_series_models.Drift
+   time_series_models.CVPipeline

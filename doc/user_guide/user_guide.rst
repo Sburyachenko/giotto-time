@@ -7,10 +7,11 @@ User guide
    :local:
 
 
-Here you can find basic examples and recipes on how to use giotto-time:
+These basic examples will demonstrate how to analyse and forecast time series with ``giotto-time``:
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
    :glob:
 
-   notebooks/*
+   basic
+   advanced
