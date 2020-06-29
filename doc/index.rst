@@ -41,5 +41,5 @@ Contents
    installation
    user_guide/user_guide
    API reference <api>
-   theory/math
+   theory/index
 
